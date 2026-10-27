@@ -1,0 +1,15 @@
+{
+  "recepcionista": {
+    "dueno": "Ángel",
+    "max_palabras_frase": 35
+  },
+  "cerebro": {
+    "principal": {"proveedor": "gemini", "modelo": "gemini-3.6-flash", "temperatura": 0.6},
+    "respaldo":  {"proveedor": "ollama", "modelo": "qwen3:8b", "temperatura": 0.6, "plazo": 20.0},
+    "plazo_primer_texto": 4.0,
+    "plazo_envio": 5.0,
+    "tope_tokens": 200
+  },
+  "ollama": {"host": "http://localhost:11434", "num_ctx": 4096, "keep_alive": "30m"},
+  "simulador": {"proveedor": "gemini", "modelo": "gemini-3.6-flash", "temperatura": 0.9}
+}

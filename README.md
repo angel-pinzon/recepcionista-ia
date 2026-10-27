@@ -19,7 +19,7 @@ conversación. El resto del README es referencia.
 | Fase | Estado |
 |---|---|
 | Diseño — arquitectura y mediciones en la 4060 | **cerrada** |
-| **F0** — conversación por el micro del PC, sin teléfono | siguiente |
+| **F0** — conversación por el micro del PC, sin teléfono | **en curso**: cerebro hecho |
 | F1 — recado resumido a Telegram al colgar | pendiente |
 | F2 — teléfono real: número virtual, desvío y túnel | pendiente |
 | F3 — servicio permanente: arranque solo, respaldo local, vigía | pendiente |
@@ -144,11 +144,12 @@ Es lo único que no debe cambiar entre fases.
 ```
 ENTRA   {"t": float, "evento": "conecta", "llamante": str | null}
         {"t": float, "evento": "habla",   "texto": str, "final": bool}
+        {"t": float, "evento": "fin_voz"}   # el adaptador terminó de sonar
         {"t": float, "evento": "cuelga"}
 
 SALE    {"orden": "decir",   "texto": str}
         {"orden": "callar"}                  # debe poder cortar a media sílaba
-        {"orden": "colgar",  "despedida": str}
+        {"orden": "colgar"}
 ```
 
 `llamante` es el número que entrega el proveedor, o `null` si viene oculto.
@@ -232,10 +233,15 @@ respaldo: aguanta la llamada, pero no es el modo normal.
   para pensar.
 - `qwen3:8b` en Ollama con `think: false` como respaldo (`/no_think` no
   funciona en ese modelo).
-- El cliente de modelos viene de `tertulia-artificial/proveedores.py`. Cambiar
-  de proveedor es cambiar una línea de `config.json`, y trae resuelto el
-  atasco de WSL al enviar a Google (plazo corto de envío y reintento con
-  conexión nueva). En una llamada ese atasco sería un silencio de 15 s.
+- El cliente de modelos (`modelos.py`) está adaptado de
+  `tertulia-artificial/proveedores.py`: aquel hace preguntas sueltas y espera
+  la respuesta entera; este lleva la conversación y lee en streaming. Se trajo
+  su lección importante, el atasco de WSL al enviar a Google (plazo corto de
+  envío y reintento con conexión nueva). En una llamada ese atasco sería un
+  silencio de 15 s.
+- Si el principal no da texto en 4 s, contesta el respaldo, que tiene su propio
+  plazo de 20 s porque puede estar frío. Si el principal se corta cuando ya
+  sonó media respuesta, no se completa con el respaldo: sonaría a dos personas.
 
 ### El filtro antes de la voz
 
@@ -377,6 +383,14 @@ Es la fase grande: aquí se construye todo lo que no es el teléfono.
 - `llamadas/`: un JSON por conversación con la transcripción y los tiempos de
   cada turno.
 
+**Hecho:** el cerebro, probado por texto. `python3 charla.py` para hablarle
+escribiendo; `python3 simular.py` corre las diez llamadas de prueba con
+llamantes simulados por otro modelo, y deja cada una en `llamadas/`. Primera
+pasada completa: las diez cierran con el recado, primera frase en 1,5 s de
+mediana (máx. 2,7 s). Lo que destapó y se corrigió en el prompt: confirmaba el
+número y se despedía en el mismo turno, sin dejar corregirlo, y repetía los
+números en decenas ("tres quince") en vez de dígito por dígito.
+
 **Criterio de salida**
 
 - Diez conversaciones de prueba, variando quién llama: alguien con prisa,
@@ -479,7 +493,7 @@ micrófono de quien llama.
 
 | De | Qué | Para qué |
 |---|---|---|
-| `tertulia-artificial/proveedores.py` | cliente de Gemini, Ollama y los demás | el cerebro y su respaldo |
+| `tertulia-artificial/proveedores.py` | plazo de envío y reintento; cliente de Ollama | `modelos.py`, adaptado a streaming |
 | `tertulia-artificial/voz_sesion.py` | troceo por frases a 35 palabras | que OmniVoice no atropelle |
 | `tertulia-artificial/servidor.py` | sintetizar lo siguiente mientras suena lo actual | que no haya huecos dentro de una respuesta |
 | `tertulia-artificial/vigia.py` | aviso de silencios y repeticiones | revisar cada llamada |
