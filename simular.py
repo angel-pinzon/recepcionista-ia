@@ -6,6 +6,7 @@ si algo empeoro, sin tener que hacerlas a mano.
 
     python3 simular.py              # las diez
     python3 simular.py prisa ventas # solo esas
+    python3 simular.py --modelo gemini-3.5-flash   # otro cerebro
 
 Lo que no simula: interrumpir a media frase. Eso es de audio y se prueba con
 el micro.
@@ -134,7 +135,12 @@ def mostrar(nombre, conductor):
 def main():
     cargar_env()
     cfg = cargar_config()
-    nombres = sys.argv[1:] or list(ESCENARIOS)
+    args = sys.argv[1:]
+    if "--modelo" in args:
+        i = args.index("--modelo")
+        cfg["cerebro"]["principal"]["modelo"] = args[i + 1]
+        del args[i:i + 2]
+    nombres = args or list(ESCENARIOS)
     tiempos, resumen = [], []
     lote = datetime.now().strftime("%Y%m%d_%H%M%S")
     for nombre in nombres:

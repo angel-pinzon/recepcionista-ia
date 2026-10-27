@@ -4,7 +4,7 @@
     "max_palabras_frase": 35
   },
   "cerebro": {
-    "principal": {"proveedor": "gemini", "modelo": "gemini-3.6-flash", "temperatura": 0.6},
+    "principal": {"proveedor": "gemini", "modelo": "gemini-3.1-flash-lite", "temperatura": 0.6},
     "respaldo":  {"proveedor": "ollama", "modelo": "qwen3:8b", "temperatura": 0.6, "plazo": 20.0},
     "plazo_primer_texto": 4.0,
     "plazo_envio": 5.0,

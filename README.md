@@ -19,7 +19,7 @@ conversación. El resto del README es referencia.
 | Fase | Estado |
 |---|---|
 | Diseño — arquitectura y mediciones en la 4060 | **cerrada** |
-| **F0** — conversación por el micro del PC, sin teléfono | **en curso**: cerebro hecho |
+| **F0** — conversación por el micro del PC, sin teléfono | **en curso**: cerebro y voz hechos; falta el oído |
 | F1 — recado resumido a Telegram al colgar | pendiente |
 | F2 — teléfono real: número virtual, desvío y túnel | pendiente |
 | F3 — servicio permanente: arranque solo, respaldo local, vigía | pendiente |
@@ -228,6 +228,21 @@ respaldo: aguanta la llamada, pero no es el modo normal.
 
 ### El cerebro
 
+- **`gemini-3.1-flash-lite`**, elegido por velocidad con las diez llamadas
+  simuladas (primera frase escrita):
+
+  | Modelo | Mediana | Máx. | Cómo conversa |
+  |---|---|---|---|
+  | gemini-3.6-flash | 1,50 s | 2,69 s | bien |
+  | gemini-3.5-flash | 1,36 s | 1,81 s | bien, el más conciso |
+  | **gemini-3.1-flash-lite** | **1,02 s** | **1,57 s** | bien, algo más hablador |
+  | gemini-3.7-flash / 3.8-flash | 3,05 / 2,40 s | — | más nuevos, más lentos |
+
+  Es el único que deja el turno completo por debajo de 3 s. Lo que se le vio:
+  con una vendedora pidió nombre y número en vez de despedirla. Si se nota
+  en llamadas reales, `gemini-3.5-flash` es el siguiente, cambiando una línea
+  de `config.json`. `gemini-3.5-flash-lite` rechaza la petición sin
+  razonamiento.
 - Gemini con `thinkingBudget: 0`. En la tertulia, quitarle el razonamiento a
   un modelo bajó sus respuestas de ~40 s a ~2 s; en un teléfono no hay margen
   para pensar.
@@ -390,6 +405,28 @@ pasada completa: las diez cierran con el recado, primera frase en 1,5 s de
 mediana (máx. 2,7 s). Lo que destapó y se corrigió en el prompt: confirmaba el
 número y se despedía en el mismo turno, sin dejar corregirlo, y repetía los
 números en decenas ("tres quince") en vez de dígito por dígito.
+
+**Hecho:** la voz.
+
+- `preparar_voz.py` recorta la muestra, la transcribe y deja el prompt de
+  clonación en `voces/` (fuera del repo). Se corre una vez.
+- `voz.py`: OmniVoice cargado una vez y una cola de dos hilos, uno que
+  sintetiza y otro que reproduce. Medido: **cero huecos entre frases** de una
+  misma respuesta. Callarse descarta lo encolado, lo que se está sintetizando
+  y lo que está sonando, mirando cada 40 ms.
+- `pulse.py`: altavoz y micro del PC por el PulseAudio de WSLg con
+  `libpulse-simple` y ctypes, sin instalar nada. 66 ms de latencia de salida, y
+  `pa_simple_flush` tira el búfer al callar.
+- `~/omni_voice_project/venv/bin/python charla.py --voz`: escribirle y oírla.
+- `ensayo.py`: una llamada simulada con voz de punta a punta salvo el micro
+  (llamante con voz diseñada, degradada a μ-law 8 kHz, Whisper, conductor,
+  voz). Deja el audio de la llamada en `llamadas/` con los silencios reales.
+
+Medido con `ensayo.py`, dos llamadas: **silencio por turno de 3,1-3,3 s**.
+Whisper 0,6-1,2 s (crece con lo largo de la intervención: hoy transcribe todo
+al final), Gemini ~1,0 s, primera frase de voz ~0,9 s. El margen está en el
+oído: transcribir por trozos mientras la persona habla deja para el final solo
+el último.
 
 **Criterio de salida**
 

@@ -143,7 +143,8 @@ class Turno:
                     # sonaría a dos personas. Se deja como está.
                     self.fallo = f"{ficha['modelo']} se cortó a media respuesta: {err}"
                     return
-                self.fallo = f"{ficha['modelo']}: {err}"
+                previo = f"{self.fallo}; " if self.fallo else ""
+                self.fallo = f"{previo}{ficha['modelo']}: {err}"
         # Ni el principal ni el respaldo: algo hay que decir.
         yield from self._sacar("Disculpe, no le escuché bien. ¿Me lo repite, por favor?", t0,
                                {"proveedor": "ninguno", "modelo": "-"})
