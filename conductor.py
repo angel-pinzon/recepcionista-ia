@@ -69,6 +69,9 @@ class Conductor:
 
         turno = self._turno(self.cfg, self.mensajes, self.llamante)
         self._cortar = False
+        # Pensando cuenta como hablando: si la interrumpen mientras el modelo
+        # escribe, tiene que poder cortarse antes de decir nada.
+        self.hablando = True
         dichas, cambios = [], []
         for frase in turno:
             if self._cortar:
@@ -86,6 +89,8 @@ class Conductor:
         self.mensajes.append({"role": "assistant", "content": dicho or "..."})
         self._apuntar("recepcionista", dicho, primera=turno.primera,
                       proveedor=turno.proveedor, fallo=turno.fallo, filtro=cambios or None)
+        if not dichas:
+            self.hablando = False
         if turno.fin and not self._cortar:
             self.terminada = True
             yield {"orden": "colgar"}

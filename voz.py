@@ -43,16 +43,34 @@ class Voz:
         self.velocidad = ajustes.get("velocidad", 1.0)
         self._cerrojo = threading.Lock()      # una GPU: una sintesis a la vez
         self._fijas = {}
+        self.repeticiones = 0                 # tomas rehechas por implausibles
         self.sintetizar("Hola.")              # la primera siempre tarda mas
 
     def sintetizar(self, texto):
         if texto in self._fijas:
             return self._fijas[texto]
+        audio = self._generar(texto)
+        if not self._plausible(texto, audio):
+            # OmniVoice a veces devuelve audio vacio o desbocado. Medido: con
+            # velocidad 0,9 devolvio una frase sin una sola muestra. Una
+            # segunda toma casi siempre sale bien, y medirlo es aritmetica.
+            self.repeticiones += 1
+            audio = self._generar(texto)
+        return audio
+
+    def _generar(self, texto):
         with self._cerrojo:
             audio = self.modelo.generate(text=texto, language="Spanish",
                                          voice_clone_prompt=self.prompt,
                                          num_step=self.pasos, speed=self.velocidad)[0]
-        return np.asarray(audio, dtype=np.float32).squeeze()
+        return np.asarray(audio, dtype=np.float32).reshape(-1)
+
+    @staticmethod
+    def _plausible(texto, audio):
+        """Entre 60 y 300 palabras por minuto: fuera de eso algo se rompio."""
+        palabras = max(len(texto.split()), 1)
+        segundos = len(audio) / RATE
+        return segundos > 0.2 and 60 <= palabras / segundos * 60 <= 300
 
     def fijar(self, *textos):
         """Deja sintetizadas de antemano frases que no pueden esperar: el saludo."""
@@ -143,31 +161,51 @@ class Hablante:
 
 
 class Archivo:
-    """Salida que no suena: acumula el audio a ritmo real, para medir y escuchar.
+    """Salida que no suena: guarda cada trozo con su hora, a ritmo real.
 
-    Los ratos en que nadie escribe quedan como silencio, asi que el resultado
-    se oye con las esperas de verdad, que es lo que hay que juzgar.
+    Al mezclar, los ratos sin audio quedan como silencio, asi que se oye con
+    las esperas de verdad. vaciar() recorta lo que aun no habia "sonado", como
+    hace el altavoz. agregar() mete audio ajeno, la voz de quien llama, para
+    oir la conversacion entera.
     """
 
     def __init__(self):
-        self.partes = []
+        self.segmentos = []
         self._reloj = None
         self._cerrojo = threading.Lock()
 
     def escribir(self, audio):
         with self._cerrojo:
-            ahora = time.perf_counter()
-            if self._reloj is not None and ahora > self._reloj + 0.02:
-                self.partes.append(np.zeros(int((ahora - self._reloj) * RATE), dtype=np.float32))
-            self.partes.append(np.asarray(audio, dtype=np.float32).copy())
-            self._reloj = max(ahora, self._reloj or 0) + len(audio) / RATE
+            inicio = max(time.perf_counter(), self._reloj or 0)
+            self.segmentos.append((inicio, np.asarray(audio, dtype=np.float32).copy()))
+            self._reloj = inicio + len(audio) / RATE
         time.sleep(max(0.0, self._reloj - time.perf_counter()))
 
     def vaciar(self):
-        pass
+        with self._cerrojo:
+            ahora = time.perf_counter()
+            quedan = []
+            for t, a in self.segmentos:
+                if t >= ahora:
+                    continue
+                quedan.append((t, a[:int((ahora - t) * RATE)]))
+            self.segmentos = quedan
+            self._reloj = ahora
 
     def esperar(self):
         pass
 
+    def agregar(self, t, audio):
+        with self._cerrojo:
+            self.segmentos.append((t, np.asarray(audio, dtype=np.float32).copy()))
+
     def audio(self):
-        return np.concatenate(self.partes) if self.partes else np.zeros(0, dtype=np.float32)
+        if not self.segmentos:
+            return np.zeros(0, dtype=np.float32)
+        t0 = min(t for t, _ in self.segmentos)
+        fin = max(int((t - t0) * RATE) + len(a) for t, a in self.segmentos)
+        mezcla = np.zeros(fin, dtype=np.float32)
+        for t, a in self.segmentos:
+            i = int((t - t0) * RATE)
+            mezcla[i:i + len(a)] += a
+        return np.clip(mezcla, -1, 1)

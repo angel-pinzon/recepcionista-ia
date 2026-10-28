@@ -19,7 +19,7 @@ conversación. El resto del README es referencia.
 | Fase | Estado |
 |---|---|
 | Diseño — arquitectura y mediciones en la 4060 | **cerrada** |
-| **F0** — conversación por el micro del PC, sin teléfono | **en curso**: cerebro y voz hechos; falta el oído |
+| **F0** — conversación por el micro del PC, sin teléfono | **en curso**: cerebro, voz y oído hechos; falta probarla por micro |
 | F1 — recado resumido a Telegram al colgar | pendiente |
 | F2 — teléfono real: número virtual, desvío y túnel | pendiente |
 | F3 — servicio permanente: arranque solo, respaldo local, vigía | pendiente |
@@ -219,8 +219,24 @@ respaldo: aguanta la llamada, pero no es el modo normal.
   cortante, y OmniVoice copia su cadencia además del timbre. Las frases salen a
   150-200 palabras por minuto; si suena apurada para atender, se baja con
   `speed`.
-- `num_step=16`. Medido en el pipeline de TikTok: con 8 la frase acaba con un
-  corte en seco audible.
+- **`num_step=32`, por calidad, a cambio de un segundo de silencio.** En la
+  primera prueba por micro hubo dos frases que no se entendieron. Medido con
+  `probar_voz.py` (unas 40 frases de las llamadas, 3 tomas cada una, Whisper
+  de juez): con 16 pasos, OmniVoice falla al azar en 0-2 de cada 100 tomas
+  ("le paso yo la salrecada", "6601-745"); con 32, en ninguna. Whisper es un
+  juez indulgente, así que la comparación de verdad fue a oído, y ganó 32.
+  Lo que cuesta: cada frase tarda 2,0 s en generarse en vez de 1,0 s, y el
+  silencio por turno sube de ~3,1 s a **~4,2 s** (medido con `ensayo.py`).
+  Dentro de una respuesta puede aparecer un hueco cuando una frase corta va
+  detrás de otra (máx. 163 ms medido).
+- Bajar la velocidad empeora: con `speed=0.9` fallaron 11 de 126 tomas, y una
+  salió sin audio. OmniVoice se pelea con el ritmo de la referencia.
+- Si una síntesis sale con una duración imposible para sus palabras (fuera de
+  60-300 por minuto, o vacía), se repite una vez. Es aritmética, no cuesta
+  nada cuando sale bien.
+- Las caídas de sonido quedan descartadas: con el búfer de 60 ms, el hilo que
+  alimenta el altavoz llegó como mucho 12 ms tarde mientras la GPU generaba
+  la frase siguiente.
 - **Por frases, nunca más de 35 palabras por trozo.** Con textos largos
   OmniVoice acelera hasta 250 palabras por minuto e inventa sílabas.
 - La salida de 24 kHz se rebaja a μ-law 8 kHz antes de mandarla: es lo que
@@ -428,6 +444,36 @@ al final), Gemini ~1,0 s, primera frase de voz ~0,9 s. El margen está en el
 oído: transcribir por trozos mientras la persona habla deja para el final solo
 el último.
 
+**Hecho:** el oído y la llamada completa.
+
+- `oido.py`: Silero VAD (0,5 ms por ventana de 32 ms, en CPU) y Whisper.
+  El turno se cierra tras 0,6 s de silencio. Whisper empieza a los 0,25 s,
+  sobre lo dicho hasta ahí; si la persona sigue, eso queda como prefijo y la
+  siguiente vez solo se transcribe lo nuevo, con el prefijo como contexto.
+  Medido: el texto llega 0,4-1,0 s después de que la voz termina, y un número
+  dictado por grupos con pausas de 0,45 s llega en una sola pieza.
+- Alucinaciones de Whisper: con un "Anote, por favor" corto devolvió
+  "¡Gracias por ver el video!" cuarenta veces. Ahora hay tope de tokens según
+  la duración del audio y se quitan las frases fantasma aunque vengan en bucle.
+- `llamada.py`: oído, conductor y voz sobre cualquier entrada y salida de
+  audio; el adaptador del teléfono solo tendrá que darle audio y una salida.
+- `micro.py`: la llamada por el micro y los altavoces del PC. Con
+  `--sin-auriculares` no escucha mientras ella habla, para que el micro no la
+  oiga por los altavoces y se interrumpa sola.
+- `ensayo.py` ahora mete la voz del llamante simulado por el oído, en bloques
+  de 32 ms a ritmo real, con silencio entre medias como un micro abierto.
+  `--interrumpe` le habla encima a media respuesta.
+- `probar_oido.py`: el oído solo, con intervenciones conocidas.
+
+Silero va instalado en el entorno de OmniVoice con `pip install --no-deps
+silero-vad`: solo pide `torch` y `packaging`, que ya estaban, y así no toca
+nada de lo que comparten el pipeline y la tertulia.
+
+Medido con `ensayo.py`: **silencio por turno de 2,7-3,4 s** según la llamada
+(mediana 2,7 s en "enrollada"; 3,7 s en "corrige", con una primera intervención
+de 15 s). **Se calla 386 ms después de que le hablan encima.** Lo que más varía
+es Gemini: de 1,8 a 2,6 s entre corridas, con voz incluida.
+
 **Criterio de salida**
 
 - Diez conversaciones de prueba, variando quién llama: alguien con prisa,
@@ -436,6 +482,9 @@ el último.
 - En las diez el recado sale completo, o la recepcionista deja constancia de
   lo que la persona no quiso dar.
 - Mediana de silencio por turno ≤ 3 s, medida en el JSON, no a oído.
+  *Con 32 pasos de voz (elegidos por calidad el 27-oct-2026) esto no se
+  cumple: ~4,2 s. Si se quiere recuperar, la vía es sintetizar con 16 pasos
+  solo la primera frase de cada respuesta, que es la única que se espera.*
 - Interrumpirla la calla en menos de 0,5 s.
 - Ninguna frase pasa el filtro con una promesa en mi nombre.
 

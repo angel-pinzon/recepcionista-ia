@@ -59,6 +59,8 @@ Cómo terminas:
   frase breve y escribe {fin} al final, pegado a la despedida.
 - Nunca te despidas en el mismo turno en que lees un número para confirmarlo,
   aunque la persona ya se haya despedido: primero que te diga si está bien.
+- Si leíste un número para confirmarlo y la persona no dijo si estaba bien
+  (cambió de tema o te interrumpió), vuelve a preguntarlo antes de despedirte.
 - No repitas todo el mensaje al despedirte; basta con decir que se lo pasas.
 """
 
