@@ -20,7 +20,7 @@ conversación. El resto del README es referencia.
 |---|---|
 | Diseño — arquitectura y mediciones en la 4060 | **cerrada** |
 | **F0** — conversación por el micro del PC, sin teléfono | **en curso**: cerebro, voz y oído hechos; falta probarla por micro |
-| F1 — recado resumido a Telegram al colgar | pendiente |
+| F1 — recado resumido a Telegram al colgar | **en curso**: hecho; falta tu juicio sobre las fichas |
 | F2 — teléfono real: número virtual, desvío y túnel | pendiente |
 | F3 — servicio permanente: arranque solo, respaldo local, vigía | pendiente |
 
@@ -506,6 +506,24 @@ en el `.env`.
 - Reintento si Telegram no contesta: el recado se guarda en disco antes de
   enviarse, y lo que no salió se reenvía en el siguiente arranque. Un recado
   no se pierde porque se cayó internet.
+
+**Hecho:** bot `@RecepcionistaDeAngelBot`, con `TELEGRAM_BOT_TOKEN` y
+`TELEGRAM_CHAT_ID` en el `.env`.
+
+- `resumen.py`: la ficha en JSON con una llamada a Gemini (respaldo local
+  si falla). La primera versión marcaba 5 de 10 llamadas simuladas como
+  urgentes; con reglas más estrictas (alta solo si hay que actuar hoy o
+  mañana, y ante la duda la más baja) quedan 2: el colegio y la emergencia.
+  El resumen va en segunda persona, de tú.
+- `telegram.py`: el mensaje con la ficha arriba y la transcripción en una cita
+  plegable debajo; el número con +57 y por grupos para que sea tocable. Solo
+  las urgentes suenan.
+- Buzón en `llamadas/pendientes/`: el recado se escribe antes de enviarse y se
+  borra cuando Telegram confirma. Probado cortando la red: quedó guardado y
+  salió al volver.
+- `recado.py`: lo llama `micro.py` al colgar. Suelto, resume llamadas ya
+  guardadas (`--enviar` las manda como `[prueba]`) o vacía el buzón.
+- Si quien llama cuelga tras el saludo, llega una línea sin gastar modelo.
 
 **Criterio de salida**
 

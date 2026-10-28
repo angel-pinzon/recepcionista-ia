@@ -22,6 +22,8 @@ logging.disable(logging.WARNING)
 import librosa
 import torch
 
+import recado
+import telegram
 from llamada import Llamada
 from pulse import Altavoz, Micro
 from util import cargar_config, cargar_env
@@ -43,10 +45,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sin-auriculares", action="store_true")
     ap.add_argument("--llamante", help="numero, como si llegara por el identificador")
+    ap.add_argument("--sin-recado", action="store_true", help="no mandar el recado a Telegram")
     args = ap.parse_args()
     cargar_env()
     cfg = cargar_config()
 
+    enviados, quedan = telegram.vaciar_buzon()
+    if enviados or quedan:
+        print(f"buzón: {enviados} recados pendientes enviados, {quedan} siguen esperando")
     print("cargando voz y oído...", flush=True)
     voz, asr = Voz(cfg), cargar_oido()
     micro = Micro(ms=32)
@@ -76,6 +82,10 @@ def main():
         print(f"se calló en {median(c['callada'] - c['detectado'] for c in llamada.cortes) * 1000:.0f} ms "
               f"al interrumpirla ({len(llamada.cortes)} veces)")
     print(f"guardada en {llamada.guardar('micro')}")
+    if not args.sin_recado:
+        ficha = recado.despachar(cfg, llamada.conductor.registro, args.llamante)
+        estado = "enviado" if not ficha.get("pendientes") else "en el buzón, sin red"
+        print(f"recado {estado}: {ficha.get('urgencia')} · {ficha.get('motivo')}")
 
 
 if __name__ == "__main__":
