@@ -124,9 +124,18 @@ class Hablante:
     def _vigente(self, epoca):
         return epoca == self._epoca
 
+    def cerrar(self):
+        """Para los dos hilos. Lo pendiente se descarta."""
+        self.callar()
+        self._por_sintetizar.put(None)
+        self._por_sonar.put(None)
+
     def _sintetizador(self):
         while True:
-            epoca, texto, marca = self._por_sintetizar.get()
+            item = self._por_sintetizar.get()
+            if item is None:
+                return
+            epoca, texto, marca = item
             if not self._vigente(epoca):
                 continue
             audio = self.voz.sintetizar(texto)
@@ -138,7 +147,10 @@ class Hablante:
 
     def _reproductor(self):
         while True:
-            epoca, audio, marca = self._por_sonar.get()
+            item = self._por_sonar.get()
+            if item is None:
+                return
+            epoca, audio, marca = item
             if not self._vigente(epoca):
                 continue
             audio = np.concatenate([audio, np.zeros(int(RATE * PAUSA), dtype=np.float32)])

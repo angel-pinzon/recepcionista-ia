@@ -165,9 +165,15 @@ class Oido:
         self._trabajos.put((version, self._intervencion, n,
                             np.concatenate(self._segmento[base[0]:]), base[1]))
 
+    def cerrar(self):
+        self._trabajos.put(None)
+
     def _transcriptor(self):
         while True:
-            version, intervencion, n, audio, previo = self._trabajos.get()
+            trabajo = self._trabajos.get()
+            if trabajo is None:
+                return
+            version, intervencion, n, audio, previo = trabajo
             with self._cerrojo:
                 vigente = version == self._version or version in self._esperando
             if not vigente:

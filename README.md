@@ -21,7 +21,7 @@ conversación. El resto del README es referencia.
 | Diseño — arquitectura y mediciones en la 4060 | **cerrada** |
 | **F0** — conversación por el micro del PC, sin teléfono | **en curso**: cerebro, voz y oído hechos; falta probarla por micro |
 | F1 — recado resumido a Telegram al colgar | **en curso**: hecho; falta tu juicio sobre las fichas |
-| F2 — teléfono real: número virtual, desvío y túnel | pendiente |
+| F2 — teléfono real: número virtual, desvío y túnel | **en curso**: número de EE. UU. contestando; falta el desvío de Claro y el número colombiano |
 | F3 — servicio permanente: arranque solo, respaldo local, vigía | pendiente |
 
 El detalle de cada fase, con lo que se construye y su criterio de salida,
@@ -321,21 +321,71 @@ el operador que los admite y cuánto cobra el minuto desviado:
 Desviar **solo** de forma condicional: el teléfono sigue sonando primero y la
 recepcionista solo entra si yo no contesto.
 
-### El proveedor
+**Claro Colombia (mi operador, pospago).** No publica ninguna página de ayuda
+sobre el desvío, ni códigos ni costo. Lo único oficial que lo menciona es la
+página de VoWiFi: con las llamadas por Wi-Fi activas, "Transferencia de
+llamadas" no se puede usar. De ahí salen dos cosas:
 
-Hace falta un número virtual cuya API entregue el audio de la llamada por
-WebSocket (Twilio Media Streams, Telnyx o equivalente). Para elegir hay que
-verificar, con precios vigentes:
+- El servicio existe y en Claro se llama **"transferencia de llamadas"**: es
+  el nombre con que hay que preguntarlo (\*611 o el chat de claro.com.co).
+- **Con VoWiFi activo no desvía.** Justo en casa, conectado al Wi-Fi, las
+  llamadas no contestadas no llegarían a la recepcionista. Hay que apagar las
+  llamadas por Wi-Fi en el móvil.
 
-- disponibilidad de número colombiano y documentación que exige;
-- coste mensual del número y por minuto entrante;
-- que el desvío desde mi operador a ese número sea una llamada nacional.
+Un foro de usuarios de hace unos seis años decía que Claro Colombia no lo
+soportaba; la página de VoWiFi es más reciente y oficial. Pendiente: probar el
+desvío hacia un número de confianza y preguntar si el minuto desviado
+descuenta del plan.
+
+### El proveedor: Twilio
+
+Precios consultados en octubre de 2026, para recibir llamadas en Colombia:
+
+| | Twilio | Telnyx |
+|---|---|---|
+| Número local colombiano | US$14/mes | desde US$13,50/mes |
+| Minuto entrante, número local | US$0,0945 | no publicado para Colombia |
+| Audio por WebSocket | Media Streams | US$0,0035/min |
+
+- En Colombia Twilio solo vende para recibir **números fijos** (indicativo de
+  ciudad, p. ej. 601 Bogotá): sus números móviles no reciben llamadas. El
+  gratuito sí recibe, pero a US$0,1792/min, y no tiene sentido cuando llega
+  por desvío.
+- El número colombiano exige un *Regulatory Bundle*: cédula y comprobante de
+  dirección **en la zona del número**. La aprobación tarda días.
+- Para desarrollar hay un número de EE. UU., **+1 276 531 4064**
+  (US$1,15/mes), que sale al instante. Llamarlo desde Colombia es larga
+  distancia internacional.
+- Las registraciones que ofrece la consola (SHAKEN/STIR, Voice Integrity,
+  Branded Calling, CNAM) son para **llamar desde** el número. Para recibir no
+  hace falta ninguna.
+- Con ~30 llamadas al mes de 2 minutos: 14 + 60 × 0,0945 ≈ **US$20/mes**, más
+  lo que cobre Claro por desviar.
+
+Se eligió Twilio por la documentación de Media Streams; Telnyx podría salir
+algo más barato, pero sin su tarifa por minuto para Colombia no se puede
+comparar.
+
+### Lo que se descartó
+
+| Camino | Por qué no |
+|---|---|
+| App en el propio móvil | Desde Android 9-10 una app normal no puede oír el audio de una llamada celular ni meterle voz. Solo lo hacen los fabricantes (Filtrar llamadas de Pixel, asistente de Samsung), con sus propios asistentes |
+| Enlace Móvil de Windows (el PC como manos libres por Bluetooth) | Probado: el móvil (REDMI Note 15 Pro+, HyperOS) se vinculó y Windows creó el perfil de manos libres, pero las llamadas de Enlace Móvil no conectaron. Además solo atiende con el móvil a ~10 m del PC encendido y no contesta solo |
+| Gateway celular (caja con SIM a SIP, o módem USB con voz) | Necesita su propia SIM, así que igual hay que desviar. Claro está apagando 2G y no hay fecha para 3G: solo sirve uno con VoLTE, y el operador tiene que aceptar VoLTE en ese aparato. Vuelve a traer SIP y UDP dentro de WSL |
+
+Ninguno resuelve las llamadas de WhatsApp: no hay forma de que un programa las
+conteste.
 
 ### La exposición
 
-`cloudflared` corriendo dentro de WSL, con un nombre de host fijo apuntando a
-FastAPI. Sin portproxy ni reglas de firewall: la conexión sale de mi equipo
-hacia Cloudflare, no entra.
+`cloudflared` corriendo dentro de WSL hacia FastAPI. Sin portproxy ni reglas
+de firewall: la conexión sale de mi equipo hacia Cloudflare, no entra.
+
+Hoy es un **túnel rápido** (`trycloudflare.com`): no pide cuenta ni dominio,
+pero la URL cambia en cada arranque. Por eso `telefono.py --numero` apunta el
+número de Twilio a la URL nueva con su API al arrancar, y solo toca la URL de
+voz. Para el servicio permanente (F3) toca un túnel con nombre fijo.
 
 ## Riesgos que condicionan el diseño
 
@@ -537,18 +587,48 @@ decir, sin leer la transcripción entera?
 
 ### F2 — Teléfono real
 
-**Requisitos previos:** proveedor elegido con precios vigentes, número
-virtual contratado y un nombre de host en Cloudflare.
+**Requisitos previos:** proveedor elegido con precios vigentes y número
+virtual contratado.
 
 **Se construye**
 
-- `adaptadores/telefono.py`: el WebSocket del proveedor. μ-law 8 kHz de
+- `telefono.py`: el WebSocket del proveedor. μ-law 8 kHz de
   entrada a 16 kHz para Whisper; de 24 kHz de OmniVoice a μ-law 8 kHz de
   salida. `callar` se traduce en vaciar el búfer de audio del proveedor.
 - Validación de la firma del proveedor en cada conexión: el túnel es público.
-- El túnel de `cloudflared` con nombre fijo.
+- El túnel de `cloudflared`.
 - El desvío condicional en mi línea, después de probar con llamadas directas
   al número virtual.
+
+**Hecho**
+
+- `telefono.py`, arrancado con
+  `~/omni_voice_project/venv/bin/python telefono.py --tunel --numero +12765314064`:
+  - `/voz` recibe el aviso de llamada de Twilio, comprueba la firma
+    (`X-Twilio-Signature`, HMAC-SHA1 con el Auth Token) y contesta que abra un
+    Media Stream contra `/medios`;
+  - el WebSocket no lleva firma, así que se abre con un **pase de un solo
+    uso** que va en esa respuesta y caduca a los 30 s;
+  - **una llamada a la vez**: la segunda se rechaza como ocupado;
+  - remuestreo con estado entre trozos (filtro antialias para bajar de 24 a
+    8 kHz): sin él, cada trozo de 40 ms dejaba un chasquido en la junta;
+  - `callar` manda `clear` a Twilio; saber que terminó de sonar usa las
+    marcas (`mark`) que Twilio devuelve al reproducirlas;
+  - al despedirse ella se cierra el stream y Twilio cuelga; al colgar sale el
+    recado a Telegram;
+  - los tres saludos (días, tardes, noches) se sintetizan al arrancar.
+- `cerrar()` en la voz, el oído y la llamada: en un servidor que atiende
+  muchas, cada llamada dejaba hilos vivos al terminar.
+- `probar_telefono.py`: simula a Twilio contra el servidor (firma, pase,
+  μ-law a ritmo real, marcas y `clear`), para probar sin número.
+
+**Primera llamada real (28 de octubre de 2026)**, desde mi móvil al número de
+EE. UU.: Whisper entendió todo por la línea real, ella leyó el número desde
+el identificador y el recado llegó a Telegram. **Silencio por turno de
+3,3-3,7 s** medido en el PC (oído ~0,75 s, Gemini ~0,9 s, voz a 32 pasos
+~1,8 s), más la red de Twilio y el túnel, que no está medida. Se notó el
+retraso. La propuesta pendiente: la primera frase de cada respuesta con 16
+pasos y el resto con 32, que baja ~1 s.
 
 **Orden de pruebas**
 

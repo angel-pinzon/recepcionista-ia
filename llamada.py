@@ -79,6 +79,8 @@ class Llamada:
     def _atender(self):
         while True:
             evento = self._eventos.get()
+            if evento is None:
+                return
             for orden in self.conductor.recibir(evento):
                 if orden["orden"] == "decir":
                     self.hablante.decir(orden["texto"])
@@ -97,6 +99,13 @@ class Llamada:
     def colgar(self):
         """Quien llama colgo, o se corta desde fuera."""
         self._eventos.put({"t": time.time(), "evento": "cuelga"})
+
+    def cerrar(self):
+        """Libera los hilos de la llamada. Despues de esto no se puede usar."""
+        self.terminada = True
+        self.hablante.cerrar()
+        self.oido.cerrar()
+        self._eventos.put(None)
 
     # --- medicion y registro --------------------------------------------
 
