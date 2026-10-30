@@ -171,6 +171,9 @@ def main():
 
     salida = llamadas_dir() / f"ensayo_{args.escenario}.wav"
     sf.write(salida, telefono(archivo.audio(), RATE), RATE)
+    # La misma llamada sin pasar la voz de ella por la linea telefonica, para
+    # mostrarla: la del llamante ya viene degradada.
+    sf.write(salida.with_name(f"ensayo_{args.escenario}_hd.wav"), archivo.audio(), RATE)
     llamada.guardar(f"ensayo_{args.escenario}")
 
     print(f"\n=== ensayo {args.escenario} ===")

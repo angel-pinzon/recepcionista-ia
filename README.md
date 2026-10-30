@@ -234,6 +234,14 @@ respaldo: aguanta la llamada, pero no es el modo normal.
 - Si una síntesis sale con una duración imposible para sus palabras (fuera de
   60-300 por minuto, o vacía), se repite una vez. Es aritmética, no cuesta
   nada cuando sale bien.
+- **El final de la última palabra.** OmniVoice se come el final de algunas
+  frases (en el pipeline de TikTok se tapa con una coletilla audible). Medido
+  con la vara del pipeline (energía final > 250): tal cual acababan en seco
+  entre 7 de 36 y 11 de 30. Arreglo sin nada audible: en las afirmaciones el
+  punto final pasa a puntos suspensivos; en las preguntas se pega "¿Eh?" y se
+  recorta en el silencio que lo precede (con puntos suspensivos se arriesgaba
+  la entonación). Queda entre 0 de 30 y 4 de 36, y cuesta 0,08 s por frase.
+  Elegido a oído frente a la versión anterior.
 - Las caídas de sonido quedan descartadas: con el búfer de 60 ms, el hilo que
   alimenta el altavoz llegó como mucho 12 ms tarde mientras la GPU generaba
   la frase siguiente.
